@@ -1,0 +1,71 @@
+#!/usr/bin/python3
+
+"""Bots RPC Interface
+
+Usage:
+  clucker <botname> reload <package_name>...
+  clucker (-h | --help)
+  clucker --version
+
+Example:
+  clucker kurumi reload fap admin youtube
+
+Options:
+  -h --help     Show this screen.
+  -v --version  Show version.
+
+"""
+
+# todo: 
+# * install package - like rsync + reload but with installing pip dependencies
+# * bot unavailable error handling
+
+from docopt import docopt
+import asyncio
+import json
+import sys
+from sshtunnel import SSHTunnelForwarder, open_tunnel
+from jsonrpc_websocket import Server
+
+
+async def rpc_function_switch(server, arguments):
+    if arguments['reload']:
+        response = await server.CORE__RELOAD(arguments['<package_name>'])
+    response = { k:v for k, v in response.items() if len(v) > 0 }
+    print(json.dumps(response, indent=2))
+
+async def connect(port_number, arguments):
+    server = Server('ws://localhost:' + str(port_number))
+    try:
+        await server.ws_connect()
+        await rpc_function_switch(server, arguments)
+    finally:
+        await server.close()
+
+arguments = docopt(__doc__, version='dozeoff rpc 1.0')
+
+# @todo: this and addresses should be loaded from some config file...
+botname = arguments['<botname>'].lower()
+host, username = '*ip-address-censored*', 'opc'
+
+if botname == 'badcell':
+    port = 6134
+elif botname == 'kurama':
+    port = 6135
+elif botname == 'pigman':
+    port = 6136
+    host, username = 'cracknspeed.shop', 'pigman'
+else:
+    # XXX: shouldn't docopt manage this?
+    print('invalid botname')
+    print('choose from: kurumi kurisu kurama or pigman')
+    sys.exit(1)
+
+# TODO: "error: connect_to 127.0.0.1 port 6135: failed." - bot is down situation
+# with open_tunnel(
+#     host,
+#     ssh_username=username,
+#     # ssh_pkey="/home/meta/.ssh/id_rsa", is finding this automatically reliable?
+#     remote_bind_address=('127.0.0.1', port)
+# ) as server:
+asyncio.run(connect('6969', arguments))
