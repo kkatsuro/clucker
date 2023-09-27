@@ -1,74 +1,18 @@
-# qt app to reload python cogs
+# clucker - Qt application to reload plugins for [Redbot Discord](https://github.com/Cog-Creators/Red-DiscordBot)
+**DISCLAIMER** - this application is work in progress, some things are done very poorly, some do not work at all.. but I think its already quite a good example.
 
- there are configs for a
- * servers:
-   * ssh key location
-   * ssh credentials
+![image](https://github.com/kkatsuro/clucker/assets/80922583/a530e650-2749-4f96-ad73-58ff5589633b)
 
- * bots:
-   * related server
-   * location of cog directory
-   * rpc port number?
+I want to use this application as a help in development of plugins for RedBot. 
+Previously, I've been using rsync to upload update code on a server, then running code reloading command by hand, 
+or (later) using [command line tool](old-src/clucker). I also used tail -f over ssh on a logfile to see tracebacks.
 
- * cogs in development:
-   * location
+This wasn't very convenient, so I wrote this application to connect all of that workflow.
 
- * application connects to a server
- * gets cog data from your pc
- * sends it trough ssh to a distant server
- * connects to bot trough rpc, reloads cog
+Application is threaded and it can work for different servers and bots at once.
+Reload cog button is using data from currently chosen cog, server and bot in gui, and it: 
+1. uploads plugin from local directory to remote server
+2. forwards local port to server, bots use RPC
+3. connects to a websocket on a forwarded server to run reloading RPC command
 
-
-
- # diagram
-
- ssh connection:
- * console window? or use main for now?
- * sftp connection
- * for each bot:
-   * rpc tunnel for commanding bot
-   * bot logfile - tail command output
-   * console window
-
-
-# bot identification
-* need to find rpc port (and if its enabled?)
-* cog directory
-* logfile
-
-all can be done with finding systemctl units?
-i could grep redbot in a systemctl units directory
-then parse 'ExecStart' line and find out rpc port and directory in which its installed (or it is always the same?)
-
-what if its on different user? -- user unit search path -- communicate ?
-
-System Unit Search Path
-    /etc/systemd/system.control/*
-    /run/systemd/system.control/*
-    /run/systemd/transient/*
-    /run/systemd/generator.early/*
-    /etc/systemd/system/*
-    /etc/systemd/system.attached/*
-    /run/systemd/system/*
-    /run/systemd/system.attached/*
-    /run/systemd/generator/*
-    ...
-    /usr/lib/systemd/system/*
-    /run/systemd/generator.late/*
-
-User Unit Search Path
-    ˜/.config/systemd/user.control/*
-    $XDG_RUNTIME_DIR/systemd/user.control/*
-    $XDG_RUNTIME_DIR/systemd/transient/*
-    $XDG_RUNTIME_DIR/systemd/generator.early/*
-    ˜/.config/systemd/user/*
-    $XDG_CONFIG_DIRS/systemd/user/*
-    /etc/systemd/user/*
-    $XDG_RUNTIME_DIR/systemd/user/*
-    /run/systemd/user/*
-    $XDG_RUNTIME_DIR/systemd/generator/*
-    $XDG_DATA_HOME/systemd/user/*
-    $XDG_DATA_DIRS/systemd/user/*
-    ...
-    /usr/lib/systemd/user/*
-    $XDG_RUNTIME_DIR/systemd/generator.late/*
+Information about reloading plugin is visible in console, in bot's log tab. If there are any errors we will see them immediately.
