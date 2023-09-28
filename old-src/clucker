@@ -62,10 +62,10 @@ else:
     sys.exit(1)
 
 # TODO: "error: connect_to 127.0.0.1 port 6135: failed." - bot is down situation
-# with open_tunnel(
-#     host,
-#     ssh_username=username,
-#     # ssh_pkey="/home/meta/.ssh/id_rsa", is finding this automatically reliable?
-#     remote_bind_address=('127.0.0.1', port)
-# ) as server:
-asyncio.run(connect('6969', arguments))
+with open_tunnel(
+    host,
+    ssh_username=username,
+    # ssh_pkey="/home/meta/.ssh/id_rsa", is finding this automatically reliable?
+    remote_bind_address=('127.0.0.1', port)
+) as server:
+    asyncio.run(connect(port, arguments))
