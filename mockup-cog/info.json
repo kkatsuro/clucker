@@ -1,0 +1,15 @@
+{
+  "author": [
+    "anon"
+  ],
+  "min_bot_version": "3.4.0",
+  "description": "cog description",
+  "hidden": false,
+  "install_msg": "installing.. nothing interesting in here.",
+  "requirements": [],
+  "short": "cog",
+  "end_user_data_statement": "no access to data..",
+  "tags": [
+    "nothing"
+  ]
+}
