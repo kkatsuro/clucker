@@ -14,8 +14,6 @@ import paramiko
 import threading
 import websocket
 
-from jsonrpc_websocket import Server
-
 from update_directory import update_directory
 from ConnectionThread import ConnectionThread
 
@@ -172,7 +170,7 @@ class MainWindow(QMainWindow):
         self.connections = {}
 
         self.console = Console(self.ui.console_output_tab_view)
-        self.console_main_tab = self.console.add_tab('rfap')
+        self.console_main_tab = self.console.add_tab('clucker')
 
         self.load_ui_from_config()
 
@@ -195,7 +193,7 @@ class MainWindow(QMainWindow):
         self.ui.bot_reload.clicked.connect(self.reload_bots_for_current_server)
         self.ui.reload_cog_button.clicked.connect(self.reload_cog)
         
-        self.log('finished initializaiton')
+        self.log('finished initialization')
 
     def reload_bots_for_current_server(self):
         # @todo: can I always access it like this?
