@@ -1,0 +1,15 @@
+{
+    "cogs": {
+        "mockup-cog": "../mockup-cog/",
+    },
+    "servers": {
+        "x.x.x.x": {
+            "key-path": "default",
+            "bots": {
+                "Botname": {
+                    "rpc": 6133
+                },
+            },
+        },
+    }
+}
