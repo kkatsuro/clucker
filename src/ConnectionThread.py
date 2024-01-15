@@ -11,10 +11,15 @@ import websocket
 from update_directory import update_directory
 from forward import Handler, ForwardServer
 
+import signal
+
+def segfault():
+    signal.raise_signal(signal.SIGSEGV)
+
 
 class ForwardThread(threading.Thread):
-    def __init__(self, local_port, remote_host, remote_port, transport, daemon=False):
-        threading.Thread.__init__(self, daemon=daemon)
+    def __init__(self, local_port, remote_host, remote_port, transport):
+        super().__init__(name=f'ForwardThread:{local_port}->{remote_port}')
 
         self.local_port = local_port
         self.remote_host = remote_host
@@ -37,7 +42,8 @@ class ForwardThread(threading.Thread):
 
 class ConnectionThread(threading.Thread):
     def __init__(self, server_info, console_tab, loop_wait_time=1):
-        threading.Thread.__init__(self)
+        print('ConnectionThread init..')
+        super().__init__(name='ConnectionThread-' + server_info)
         self.server_info = server_info
         self.tasks = []
         self.loop_wait_time = loop_wait_time
@@ -92,6 +98,7 @@ class ConnectionThread(threading.Thread):
 
     # somehow it is a little bit clearer this way?
     def start_main_loop(self):
+        # segfault()
         while True:
             if len(self.tasks) != 0:
                 task = self.tasks.pop()
@@ -121,14 +128,22 @@ class ConnectionThread(threading.Thread):
         self.tasks.append((self.finish_connection_task, ))
 
     def finish_connection_task(self):
+        for tunnel in self.forward_threads:
+            tunnel.cancel()
+            tunnel.join()  # wait for it to cancel..
+
         # @todo: close connection
         self.console.log('closing connection..')
 
         # close all connections with bots here...
-
+        # @todo: is this correct order and everything i should close?
         self.sftp.close()
+        self.transport.close()
         self.client.close()
         self.console.log('closed!')
+
+        # segfault()
+
         return -1
 
     # pass function and arguments if needed

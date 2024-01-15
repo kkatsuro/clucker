@@ -16,3 +16,10 @@ Reload cog button is using data from currently chosen cog, server and bot in gui
 3. connects to a websocket on a forwarded server to run reloading RPC command
 
 Information about reloading plugin is visible in console, in bot's log tab. If there are any errors we will see them immediately.
+
+
+# install dependencies
+
+(this won't be necessary later, cause its going to be pip package..)
+
+`pip install pyside6 pretty_errors paramiko websocket-client`
