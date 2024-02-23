@@ -17,11 +17,10 @@ import socket
 import subprocess
 import shutil
 import random
-import websocket
 
 red = None
 
-from MyDataclasses import BotToken, RedInstance
+from RedInstance import BotToken, RedInstance
 from data_manager import global_config, save_config, colorscheme
 from helpers import combobox_clear
 

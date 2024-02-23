@@ -37,6 +37,10 @@ LOADED=1
 # @todo: I made it dataclass at start, but now it changed too much and I will have to rethink if it's correct. But currently, initialization won't work if I do simple changes to make it a class.
 @dataclass
 class RedInstance:
+    """
+    This stores all the information related to Redbot Instance, window and process.
+    Maybe I should separate these 2 in the future, but maybe not.
+    """
     name: str
     version: str
     prefix: str

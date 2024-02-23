@@ -7,7 +7,7 @@ from Ui_AddInstance import Ui_AddInstance
 from AddVenv import get_add_venv_window
 
 from data_manager import global_config, save_config, colorscheme
-from MyDataclasses import RedInstance
+from RedInstance import RedInstance
 from helpers import combobox_clear
 
 # @todo: Do we really want to use this? Maybe there's a smart way to abstract it..
