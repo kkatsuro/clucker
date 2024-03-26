@@ -40,8 +40,7 @@ class InstanceWindow(QMainWindow):
         self.setWindowTitle(red_instance.instance_name()) # - Redbot Development Manager')
 
         self.red_instance = red_instance
-        self.reader = red_instance.reader
-        self.red = red_instance.process
+        self.red_instance.signal.ready_read.connect(self.print_from_process)
 
         self.cog_choice = self.ui.cog_choice_combobox
         # self.instance_choice = self.ui.instance_choice_combobox
@@ -51,10 +50,6 @@ class InstanceWindow(QMainWindow):
 
         # @todo: All the directory watcher stuff... Each window has its own separate one and we don't need it. We can have one class which deals with looking for new directories, which signals when new directory was found.
         self.reload_cog_directories()
-
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.terminal_read_data)
-        self.timer.start(33)
         CogDirManager.watcher.directoryChanged.connect(self.reload_cog_directories)  # @todo: verify this works
 
         self.cursor = self.ui.terminal.textCursor()
@@ -87,20 +82,14 @@ class InstanceWindow(QMainWindow):
     def call_reload_cog(self):
         self.red_instance.reload_cog(self.cog_choice_current_path())
 
-
-    def terminal_read_data(self):
-        try:
-            data = self.reader.read()
-        except TypeError:  # happens when no data
-            return
-        self.cursor.insertText(data)
+    def print_from_process(self):
+        data = self.red_instance.output_stdout + self.red_instance.output_stderr
         print(data, end='')
+        self.cursor.insertText(data)
         self.red_instance.output += data
 
-        # @todo: If user did scroll up to read something, ignore this.
         down = self.ui.terminal.verticalScrollBar().maximum()
         self.ui.terminal.verticalScrollBar().setValue(down)
-
 
     def log(self, message):
         self.console_main_tab.log(message)

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from InstanceWindow import InstanceWindow
 from helpers import *
 
-from PySide6.QtCore import QThread
+from PySide6.QtCore import QProcess, QObject, Signal
 
 from data_manager import global_config
 
@@ -31,6 +31,10 @@ UNLOADED=0
 LOADING=1
 LOADED=1
 
+class SignalBS(QObject):
+    '''I am almost certain something won't work if I try to create signal for dataclass which doesn't inherit from QObject, so I created this.. But maybe we can get rid of this, @todo'''
+    ready_read = Signal()
+
 # @todo: We may want to somehow combine this with InstanceWindow, or rethink how to connect these 2, ownerships etc.
 # @todo: Implement stopping.
 # @todo (maybe in the future): Make it possible for user to specify port or path.
@@ -50,17 +54,23 @@ class RedInstance:
     port: str = None
     window: str = None  # @todo: Change to QMainWindow type.
     process: subprocess.Popen = None
-    reader = None
-    writer = None
     output = ''
     loaded = False
+
+    process_signals = []
 
     state = UNLOADED
 
     def __post_init__(self):
-        r, w = os.pipe()
-        os.set_blocking(r, False)
-        self.reader, self.writer = os.fdopen(r, 'r'), os.fdopen(w, 'w')
+        self.process = QProcess()
+        self.signal = SignalBS()
+
+        self.process.readyReadStandardOutput.connect(self.process_read_forward)
+        self.process.readyReadStandardError.connect(self.process_read_forward)
+
+        self.output_stdout = ''
+        self.output_stderr = ''
+
 
     def as_dict(self):
         return {
@@ -86,13 +96,29 @@ class RedInstance:
     def cogs_path(self):
         return f'{self.redbot_path()}/cogs/CogManager/cogs/'
 
+    # @todo: Maybe we should abstract all of this printing code to make it better defined. Currently I feel it's kinda mess with how to actually use it.
+    def process_finish_connect(self, new_signal):
+        '''Disconnects all previously connected signals, connects new signal and saves it.'''
+        for signal in self.process_signals:
+            self.process.finished.disconnect(signal)
+        self.process_signals = [new_signal]  # @todo: This may make not much sense, it probably always will be 1 element at max, but for now - whatever.
+        self.process.finished.connect(new_signal)
+
     def print(self, *args):
-        # print(' '.join(args))
-        self.writer.write(' '.join(args) + '\n')
-        self.writer.flush()
+        self.output_stdout = ' '.join(args) + '\n'
+        self.signal.ready_read.emit()
+
+    def process_read_forward(self):
+        self.output_stdout = self.process.readAllStandardOutput().toStdString()
+        self.output_stderr = self.process.readAllStandardError().toStdString()
+        self.signal.ready_read.emit()
 
     # @todo: Verify if we do all of this in right way and order.
+    # @todo: what if we call this twice?
     def open(self):
+        """
+        Makes instance window appear. Manages starting and even installing, if instance isn't installed yet.
+        """
         if self.window != None:
             self.window.raise_()
             self.window.activateWindow()
@@ -102,25 +128,23 @@ class RedInstance:
 
         if self.state == UNLOADED:
             self.state = LOADING
-            self.thread = QThread()
-            self.thread.run = self.load_and_stuff
-            self.thread.start()
+            self.load_and_stuff()
 
     def load_and_stuff(self):
         if not self.redbot_installed():
-            self.install_redbot()
+            self.install_process_create_venv()
 
         elif not self.instance_installed():
             self.install_instance()
             
-        elif self.process == None:
+        elif not self.loaded:
             self.start_process()
 
     # @todo: Check if all necessary packages installed?
     def redbot_installed(self):
         try:  # @standards: It may be incorrect way to check if path exists, can be found in different places too.
-            print(self.path())
-            os.listdir(self.path())
+            with open(f'{self.path()}/bin/redbot-setup', 'r'):
+                pass
             return True
         except FileNotFoundError:
             return False
@@ -139,50 +163,41 @@ class RedInstance:
         except FileNotFoundError:
             return False
 
-    def install_redbot(self):
+    # @todo: It seems a lot of things can go wrong in this installation process, like if we stop program during it. Shouldn't we give more options for starting these functions(processes)? 3 of them were in one function earlier, but it's possible we may want to do more conditionals and start from 2nd one, or 3rd?
+    def install_process_create_venv(self):
         python_path = global_config['venvs'][self.version]
-
         # @todo: Can be `-m venv` unavailable?
         # @todo: Venv creation is possible even if directory already exists, but it doesnt remove 'additional' files.. What do we do with that? How do we behave here if Venv already exists?
         self.print(f'Creating new Virtual Environment with {python_path} at {self.path()}')
-        subprocess.run([
-            python_path, 
-            '-m', 'venv', self.path()
-        ], stdout=self.writer, stderr=self.writer)
+        self.process_finish_connect(self.install_process_pip_ugrade)
+        self.process.start(python_path, [ '-m', 'venv', self.path() ])
 
+    def install_process_pip_ugrade(self):
         self.print(f'Upgrading pip and wheel packages')
-        subprocess.run([
-            f'{self.path()}/bin/pip', 
-            'install', '-U', 'pip', 'wheel'
-        ], stdout=self.writer, stderr=self.writer)
+        self.process_finish_connect(self.install_process_install_red)
+        self.process.start(f'{self.path()}/bin/pip', ['install', '-U', 'pip', 'wheel' ])
 
+    def install_process_install_red(self):
         self.print(f'Running pip installation of Redbot, version:', self.version)
-        subprocess.run([
-            f'{self.path()}/bin/pip', 
+        self.process_finish_connect(self.install_instance)
+        self.process.start(f'{self.path()}/bin/pip', [
             'install', '-Iv', f'Red-DiscordBot=={self.version}'
-        ], stdout=self.writer, stderr=self.writer)
-
-        self.install_instance()
-
+        ])
 
     def install_instance(self):
-        # def setup_instance(instance_name, venv_path, redbot_version):
         self.print('Running redbot setup for instance:', self.instance_name())
-        process = subprocess.run([
-            f'{self.path()}/bin/redbot-setup', 
+        self.process.start( f'{self.path()}/bin/redbot-setup', [
             '--no-prompt', '--instance-name', self.instance_name()
-        ]) #, stdout=self.writer, stderr=self.writer) 
+        ])
         # success - prints: Your basic configuration has been saved.
         # already exists - prints: An instance with this name already exists. 
         # @todo: Do we: check error code for this error and handle it somehow? But this shouldn't happen now.
 
-        if process.returncode != 0:
-            # @todo: Inform user about error.
-            self.print('ERROR: instance with this name already exists')
-            return
-
-        self.start_process()
-
+        # @todo: make this happen
+        # if process.returncode != 0:  # @debug @todo: Inform user about error.
+        #     self.print('ERROR: instance with this name already exists')
+        #     return
+        self.process_finish_connect(self.start_process)
 
     def start_process(self):
         self.port = str(get_random_available_port())
@@ -190,8 +205,9 @@ class RedInstance:
         self.print('Starting Redbot instance:', self.instance_name())
         self.print('Token:', self.token)
         self.print('RPC port:', self.port)
-        self.process = subprocess.Popen([
-            self.red_path(), self.instance_name(),
+
+        self.process.start(self.red_path(), [
+            self.instance_name(),
             '--no-prompt',
             '--token', global_config['tokens'][self.token],  # @nocheckin
             '--prefix', self.prefix,
@@ -201,13 +217,17 @@ class RedInstance:
             # '--debug',
             # '--rich-traceback-show-locals',  
             # '--rich-traceback-extra-lines',
-        ], stdout=self.writer, stderr=self.writer)
+        ])
+
         self.loaded = True
         # @todo: This can actually fail, for example due to not all Privileged Intents enabled. We want something to be able to tell if redbot is currently working, and display that as 'running' status.
 
 
     # @todo: ModuleNotFoundError: No module named 'httpx'
     # Implement installation from setup.py but also a way to avoid this situation somehow (list all dependencies with grep-like function?). It would be great to prompt user with 'module not found, do you want to install it now?' after this happens, but we also should inform him that he should add all necessary modules to setup.py to install them aannnddd maybe (probably) we want to give a way to install all modules which were added (during development). So, we need to keep track of all imports, or setup.py file, before reloading any cog.
+
+    # @todo: Do this in different thread because it is blocking the whole gui code..
+    # @todo: Wait for execution of it untill all is initialized, is this neccessary?
     def reload_cog(self, cog_path):
         cogname = extract_cogname_from_path(cog_path)
         destination = f'{self.cogs_path()}/{cogname}'
