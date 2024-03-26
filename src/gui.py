@@ -6,30 +6,24 @@ from PySide6.QtGui import *
 
 from PySide6.QtNetwork import QTcpServer
 
-
 import pretty_errors
 
 import sys
-import os
-import json
 import time
-import socket
-import subprocess
-import shutil
-import random
-
-red = None
 
 from RedInstance import BotToken, RedInstance
 from data_manager import global_config, save_config, colorscheme
-from helpers import combobox_clear
-
 from AddInstance import get_add_instance_window
+from RPCResolver import RPCResolver
+from TerminalConnectionServer import TerminalConnectionServer
+
 from CogDirectoryManager import CogDirManager
 
 
 GRID_SPACING_SIZE = 6
 
+
+# Instances should be identified by name only. Possibility of having 2 instances with the same name causes a lot of problems actually, i thought identification by name@version can be good, but its not really, there are just no real advantages of that, and it is a mess everywhere. Imagine having to write a plugin and then do a '{name}@{version}', or if someone did forget or didnt notice its necessary. @todo: but do we even have to change something to make it work?
 
 # @todo: User should not connect to the same token twice, but there may be some reason for running 2 different instances on the same token - if user wants to open 2nd, but he didnt close first one yet, we should tell him its running on same token, so it might not work.
 
@@ -59,16 +53,17 @@ class InstanceTile(QPushButton):
         self.clicked.connect(self.set_loaded)
         self.clicked.connect(self.instance.open)
 
-    def reload_name(self):
-        self.setText(f'{self.instance.name} {self.instance.version}')
-        self.setIcon(QIcon('img/icon-online.png' if self.loaded else 'img/icon-offline.png'))
-
     # @todo: this is really dumb currently
     def set_loaded(self):
         self.loaded = True
         self.reload_name()
 
+    def reload_name(self):
+        self.setText(f'{self.instance.name} {self.instance.version}')
+        self.setIcon(QIcon('img/icon-online.png' if self.loaded else 'img/icon-offline.png'))
+
 class InstanceMenu(QMainWindow):
+    '''Main Window of application, all instances are here (InstanceTiles)'''
     def __init__(self):
         super().__init__()
 
@@ -92,8 +87,8 @@ class InstanceMenu(QMainWindow):
         CogDirManager.init()
 
         # @todo: Wouldn't this be clearer if done together with loading config?
-        self.tokens = { name: BotToken(name, value) for name, value in global_config['tokens'].items() }
         self.instances = [ RedInstance(**instance) for instance in global_config['instances'] ]
+        self.instances_dict = { instance.name:instance for instance in self.instances }
         self.buttons = [ InstanceTile(instance) for instance in self.instances ]
         self.sort_buttons()
 
@@ -106,22 +101,51 @@ class InstanceMenu(QMainWindow):
 
         # gui wrapper (launcher.py), @todo: all of the code from it should probably be in this file
         try:
-            self.server = QTcpServer()
-            self.server.listen(port=12748)
+            self.launcher_server = QTcpServer()
+            self.launcher_server.listen(port=12748)
         except OSError:   # @todo: add normal debug statement
             print('port already in use... use config file to setup different port for your application')
             sys.exit()
 
-        self.server.newConnection.connect(self.new_connection)
+        # for reloading and stuff
+        try:
+            self.rpc_server = QTcpServer()
+            self.rpc_server.listen(port=12749)
+        except OSError:
+            print('port already in use... use config file to setup different port for your application')
+            sys.exit()
+
+        # for terminal
+        try:
+            self.terminal_connection_server = QTcpServer()
+            self.terminal_connection_server.listen(port=12750)
+        except OSError:
+            print('port already in use... use config file to setup different port for your application')
+            sys.exit()
+
+        self.launcher_server.newConnection.connect(self.launcher_new_connection)
+        self.rpc_server.newConnection.connect(self.rpc_new_connection)
+        self.terminal_connection_server.newConnection.connect(self.terminal_server_new_connection)
+        self.socket_clients = {}
 
     # for gui wrapper (launcher.py)
-    def new_connection(self, *args):
+    def launcher_new_connection(self):
         self.show()
         self.raise_()
         self.activateWindow()
-        client = self.server.nextPendingConnection()
+        client = self.launcher_server.nextPendingConnection()
         client.write(b'done!')
         client.disconnectFromHost()
+
+    def rpc_new_connection(self):
+        client = RPCResolver(self.rpc_server.nextPendingConnection(), self)
+        # @todo: Can we do this? Will this get removed correctly? It definitely is unique - when socket still active, new ones can't get the same descriptor.
+        self.socket_clients[client.socket.socketDescriptor()] = client
+
+    def terminal_server_new_connection(self):
+        client = TerminalConnectionServer(self.terminal_connection_server.nextPendingConnection(), self)
+        # @todo: Can we do this? Will this get removed correctly? It definitely is unique - when socket still active, new ones can't get the same descriptor.
+        self.socket_clients[client.socket.socketDescriptor()] = client
 
     def open_add_new_instance_dialog(self):
         self.add_instance_dialog = get_add_instance_window()
