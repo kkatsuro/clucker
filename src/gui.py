@@ -25,6 +25,8 @@ from data_manager import global_config, save_config, colorscheme
 from helpers import combobox_clear
 
 from AddInstance import get_add_instance_window
+from CogDirectoryManager import CogDirManager
+
 
 GRID_SPACING_SIZE = 6
 
@@ -86,6 +88,8 @@ class InstanceMenu(QMainWindow):
         self.scroll_area.setWidget(self.scroll_area_qwidget)
         self.main_grid = QGridLayout(self.scroll_area_qwidget)
         self.main_grid.setSpacing(GRID_SPACING_SIZE)
+
+        CogDirManager.init()
 
         # @todo: Wouldn't this be clearer if done together with loading config?
         self.tokens = { name: BotToken(name, value) for name, value in global_config['tokens'].items() }

@@ -40,16 +40,6 @@ def widgetlist_clear(combobox):
     while combobox.count():
         combobox.takeItem(0)
 
-# @todo: Currently this function is not certain, we probably should add some way of better identification.
-# For example, __init__.py common for a python package, but __init__ with:
-# `def setup(bot):
-#     bot.add_cogs(our_cog)`
-# is not.
-def is_cog_path(path):
-    '''Checks if directory is (probably) a cog directory.'''
-    return '__init__.py' in os.listdir(path)  # info.json is not needed for cog to be loaded, but it is standard file too.
-
-
 # == previously find_pythons.py ==
 
 def probably_is_python(path):
